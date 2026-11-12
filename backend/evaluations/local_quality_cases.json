@@ -1,0 +1,30 @@
+[
+  {
+    "id": "repeated_exact_reply",
+    "character": "Nova",
+    "prior": ["The gate is locked. We need to find the key."],
+    "reply": "The gate is locked. We need to find the key.",
+    "expect_repetitive": true
+  },
+  {
+    "id": "new_scene_development",
+    "character": "Nova",
+    "prior": ["The gate is locked. We need to find the key."],
+    "reply": "Nova finds a hidden lever beneath the broken statue.",
+    "expect_repetitive": false
+  },
+  {
+    "id": "fresh_first_turn",
+    "character": "Kai",
+    "prior": [],
+    "reply": "The air smells of rain. Shall we take the mountain pass?",
+    "expect_repetitive": false
+  },
+  {
+    "id": "repeat_long_action",
+    "character": "Kai",
+    "prior": ["He crosses the courtyard and looks into the abandoned tower."],
+    "reply": "He crosses the courtyard and looks into the abandoned tower.",
+    "expect_repetitive": true
+  }
+]

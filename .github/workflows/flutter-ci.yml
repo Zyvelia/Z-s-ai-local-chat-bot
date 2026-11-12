@@ -1,0 +1,32 @@
+name: Flutter validation
+on:
+  push:
+    paths: ['apps/client/**', '.github/workflows/flutter-ci.yml']
+  pull_request:
+    paths: ['apps/client/**', '.github/workflows/flutter-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate untracked platform runners (without overwriting lib)
+        working-directory: apps/client
+        run: flutter create --platforms=android,ios,web,windows --project-name character_chat_client .
+      - name: Configure microphone permissions
+        run: python scripts/configure-flutter-audio.py
+      - name: Resolve Flutter dependencies
+        working-directory: apps/client
+        run: flutter pub get
+      - name: Analyze source
+        working-directory: apps/client
+        run: flutter analyze --no-fatal-infos
+      - name: Run widget tests
+        working-directory: apps/client
+        run: flutter test

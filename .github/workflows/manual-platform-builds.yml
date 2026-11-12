@@ -1,0 +1,54 @@
+# Manual build verification only. Never publishes, signs, or deploys artifacts.
+name: Manual platform compile check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+          - runner: ubuntu-latest
+            platform: web
+          - runner: ubuntu-latest
+            platform: android
+          - runner: macos-latest
+            platform: ios
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Flutter platform runners
+        working-directory: apps/client
+        run: flutter create --platforms=android,ios,web,windows --project-name character_chat_client .
+      - name: Configure microphone permissions
+        run: python scripts/configure-flutter-audio.py
+      - name: Install dependencies
+        working-directory: apps/client
+        run: flutter pub get
+      - name: Enable Windows desktop
+        if: matrix.platform == 'windows'
+        run: flutter config --enable-windows-desktop
+      - name: Build Windows
+        if: matrix.platform == 'windows'
+        working-directory: apps/client
+        run: flutter build windows --release --dart-define=API_BASE_URL=https://example.invalid
+      - name: Build web
+        if: matrix.platform == 'web'
+        working-directory: apps/client
+        run: flutter build web --release --dart-define=API_BASE_URL=https://example.invalid
+      - name: Build Android debug APK (no signing required)
+        if: matrix.platform == 'android'
+        working-directory: apps/client
+        run: flutter build apk --debug --dart-define=API_BASE_URL=https://example.invalid
+      - name: Build iOS simulator (no signing required)
+        if: matrix.platform == 'ios'
+        working-directory: apps/client
+        run: flutter build ios --simulator --debug --dart-define=API_BASE_URL=https://example.invalid

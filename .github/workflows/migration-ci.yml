@@ -1,0 +1,39 @@
+name: PostgreSQL migration verification
+on:
+  push:
+    paths: ['backend/**', 'scripts/verify-migrations.sh', '.github/workflows/migration-ci.yml']
+  pull_request:
+    paths: ['backend/**', 'scripts/verify-migrations.sh', '.github/workflows/migration-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migration-upgrade:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: character
+          POSTGRES_DB: character_chat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U character -d character_chat"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: character
+      PGPASSWORD: test_password
+      PGDATABASE: character_chat
+      TEST_DATABASE_URL: postgresql+asyncpg://character:test_password@localhost:5432/character_chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: pip install -r backend/requirements-dev.txt
+      - run: bash scripts/verify-migrations.sh

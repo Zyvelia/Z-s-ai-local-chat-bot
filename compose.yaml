@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: character
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_only_password}
+      POSTGRES_DB: character_chat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U character -d character_chat"]
+      interval: 5s
+      retries: 10
+    networks: [internal]
+  redis:
+    image: redis:7-alpine
+    # No external ports; Redis stores only transient coordination and metrics.
+    command: ["redis-server", "--appendonly", "no", "--save", "", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [internal]
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    # Never publish Ollama's port on a public network.
+    networks: [internal]
+  voice:
+    build: ./voice-service
+    environment:
+      VOICE_INTERNAL_TOKEN: ${VOICE_INTERNAL_TOKEN:-local-dev-voice-token-change-me}
+      PIPER_MODEL_PATH: /models/voice.onnx
+      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
+      WHISPER_DOWNLOAD_ROOT: /model-cache
+    volumes:
+      - ./voice-models:/models:ro
+      - whisper_cache:/model-cache
+    # No published ports: internal API only. Model file must be installed separately.
+    networks: [internal]
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://character:${POSTGRES_PASSWORD:-local_dev_only_password}@postgres:5432/character_chat
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      INFERENCE_CONCURRENCY: ${INFERENCE_CONCURRENCY:-2}
+      INFERENCE_WAIT_SECONDS: ${INFERENCE_WAIT_SECONDS:-20}
+      INFERENCE_LEASE_SECONDS: ${INFERENCE_LEASE_SECONDS:-120}
+      INFERENCE_MAX_WAITERS: ${INFERENCE_MAX_WAITERS:-100}
+      INFERENCE_MAX_CONTEXT: ${INFERENCE_MAX_CONTEXT:-16384}
+      INFERENCE_MAX_OUTPUT: ${INFERENCE_MAX_OUTPUT:-2048}
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
+      DATABASE_POOL_TIMEOUT: ${DATABASE_POOL_TIMEOUT:-15}
+      OLLAMA_CACHE_TTL_SECONDS: ${OLLAMA_CACHE_TTL_SECONDS:-15}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_BEFORE_DEPLOYMENT}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      ENVIRONMENT: development
+      MEDIA_STORAGE_DIR: /app/data/media
+      AUDIO_STORAGE_DIR: /app/data/audio
+      VOICE_SERVICE_URL: http://voice:8086
+      VOICE_INTERNAL_TOKEN: ${VOICE_INTERNAL_TOKEN:-local-dev-voice-token-change-me}
+      VOICE_IDS: ${VOICE_IDS:-default}
+    volumes:
+      - media_data:/app/data/media
+      - audio_data:/app/data/audio
+    ports:
+      - '127.0.0.1:8000:8000'
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      ollama: {condition: service_started}
+      voice: {condition: service_started}
+    networks: [internal]
+volumes:
+  postgres_data:
+  ollama_data:
+  media_data:
+  audio_data:
+  whisper_cache:
+networks:
+  internal:
